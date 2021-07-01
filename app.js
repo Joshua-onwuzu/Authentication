@@ -5,7 +5,10 @@ const bodyParser = require("body-parser");
 const ejs = require("ejs");
 // const _ = require("lodash");
 const mongoose= require("mongoose");
-const encrypt =  require("mongoose-encryption")
+// const encrypt =  require("mongoose-encryption")
+// const md5 = require("md5");
+
+const bcrypt = require("bcrypt");
 
 const app = express()
 app.set('view engine', 'ejs');
@@ -14,6 +17,9 @@ app.use(bodyParser.urlencoded({extended: true}));
 app.use(express.static("public"));
 
 mongoose.connect("mongodb://localhost:27017/UsersDB",{useNewUrlParser : true, useUnifiedTopology:true});
+
+
+const saltRounds = 5;
 
 
 
@@ -27,7 +33,7 @@ const userSchema = new mongoose.Schema({
     password : String
 })
 
-userSchema.plugin(encrypt, {secret:process.env.SECRET, encryptedFields : ["password"]})
+// userSchema.plugin(encrypt, {secret:process.env.SECRET, encryptedFields : ["password"]})
 
 
 
@@ -50,12 +56,15 @@ app.route("/login")
     User.findOne({email : username},(err, data)=>{
         if(!err){
             if(data){
-                if (data.password === password){
-                    res.render("secrets")
-                }
-                else {
-                    res.send("Wrong password")
-                }
+                bcrypt.compare(password, data.password, function(err, result) {
+                    if (result === true){
+                        res.render("secrets")
+                    }
+                    else {
+                        res.send("Wrong password")
+                    }
+                });
+
             } else {
                 res.send("Wrong Email")
             }
@@ -77,31 +86,33 @@ app.route("/register")
     const username = req.body.username
     const password = req.body.password
 
-    const newUser  =  new User({
-        email :  username,
-        password : password
-    })
-    //     newUser.save((err)=>{
-    //     if(!err){
-    //         res.render("secrets")
-    //     }else{
-    //         console.log(err)
-    //     }
-    // })
-    User.findOne({email : username} ,(err, data)=>{
-        if(!data){
+
+    bcrypt.hash(password, saltRounds, function(err, hash) {
+        // Store hash in your password DB.
+
+        if (!err){
+            const newUser  =  new User({
+                email :  username,
+                password : hash
+            })
             newUser.save((err)=>{
                 if(!err){
                     res.render("secrets")
                 }else{
                     console.log(err)
                 }
-            })
-        } else {
-            res.send("Please use another email address, the one you use has already been stored in our database")
+        })
+        }else {
+            console.log(err)
         }
+
+    });
+
+
+
     })
-})
+
+
 
 
 
